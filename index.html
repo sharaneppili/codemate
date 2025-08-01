@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSA Practice Environment</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" xintegrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- CodeMirror CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/theme/material-darker.min.css">
+    <!-- CodeMirror JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/clike/clike.min.js"></script>
+    <style>
+        body {
+            background-color: #212529; /* Bootstrap dark bg */
+        }
+        .CodeMirror {
+            border-radius: 0.5rem;
+            height: 450px;
+            font-size: 16px;
+        }
+        .modal-backdrop {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            z-index: 1050;
+        }
+        #feedback-container, #results-output, #console-output {
+            white-space: pre-wrap;
+            font-family: monospace;
+            color:black;
+            
+        }
+        .test-case {
+            background-color: #495057; /* Bootstrap gray-700 */
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            margin-bottom: 0.5rem;
+            font-family: monospace;
+        }
+        .lang-btn.active {
+            background-color: #198754; /* Bootstrap btn-success color */
+            border-color: #198754;
+        }
+    </style>
+</head>
+<body class="text-light">
+
+    <!-- Difficulty Selection Modal -->
+    <div id="difficulty-modal" class="modal-backdrop">
+        <div class="bg-dark shadow-lg rounded-3 p-5 text-center">
+            <h2 class="mb-4">Select Difficulty Level</h2>
+            <div class="d-flex justify-content-center gap-3">
+                <button onclick="selectDifficulty('Easy')" class="btn btn-success btn-lg px-4">Easy</button>
+                <button onclick="selectDifficulty('Medium')" class="btn btn-warning btn-lg px-4">Medium</button>
+                <button onclick="selectDifficulty('Hard')" class="btn btn-danger btn-lg px-4">Hard</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="main-content" class="container py-4 d-none">
+        <div class="row g-4">
+            <!-- Left Panel -->
+            <div class="col-lg-6">
+                <div class="bg-dark p-4 rounded-3 shadow-sm d-flex flex-column h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h1>DSA Challenge</h1>
+                        <div id="timer" class="fs-2 font-monospace bg-secondary text-white px-3 py-1 rounded">10:00</div>
+                    </div>
+                    <div id="question-container" class="mb-4 flex-grow-1">
+                        <h2 id="question-title" class="mb-2"></h2>
+                        <p id="question-description" class="text-body-secondary mb-4"></p>
+                        <h5 class="mb-2">Example:</h5>
+                        <div id="example-container"></div>
+                    </div>
+                    <div class="d-flex gap-3 mb-4">
+                        <button id="run-code-btn" class="btn btn-info w-50">Run Code</button>
+                        <button id="get-clue-btn" class="btn btn-primary w-50">Get Clue</button>
+                    </div>
+                     <div class="bg-secondary p-3 rounded" style="min-height: 100px;">
+                        <h5 class="mb-2">Hint / Suggestion</h5>
+                        <div id="feedback-container" class="fst-italic">Click "Get Clue" or wait for periodic feedback...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel -->
+            <div class="col-lg-6">
+                <div class="d-flex gap-2 mb-2">
+                    <button id="lang-python" class="lang-btn btn btn-secondary btn-sm">Python</button>
+                    <button id="lang-java" class="lang-btn btn btn-secondary btn-sm">Java</button>
+                    <button id="lang-cpp" class="lang-btn btn btn-secondary btn-sm">C++</button>
+                </div>
+                <textarea id="code-editor"></textarea>
+                <div class="bg-dark p-3 rounded-3 mt-4 shadow-sm">
+                     <h5 class="mb-2 text-body-secondary">Console Output</h5>
+                     <div id="console-output" class="bg-black p-2 rounded" style="min-height: 75px;">...</div>
+                </div>
+                <div class="bg-dark p-3 rounded-3 mt-4 shadow-sm">
+                     <h5 class="mb-2 text-body-secondary">Test Results</h5>
+                     <div id="results-output" class="fst-italic">Click "Run Code" to see your results.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" xintegrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+    <!-- Ollama API Logic -->
+    <script>
+        // ollama-api.js
+        
+        const OLLAMA_API_URL = "http://localhost:11434/api/generate";
+
+        const OLLAMA_MODEL = "codellama";
+
+        async function getOllamaResponse(prompt) {
+            try {
+                const response = await fetch(OLLAMA_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: OLLAMA_MODEL, prompt: prompt, stream: false }),
+                });
+                if (!response.ok) throw new Error(`Ollama API request failed: ${response.statusText}`);
+                const data = await response.json();
+                return data.response;
+            } catch (error) {
+                console.error("Error communicating with Ollama:", error);
+                if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                     return `ERROR: A network error occurred. This is often due to a CORS (Cross-Origin Resource Sharing) issue.
+This browser environment prevents requests to 'localhost'.
+To fix this, you must configure your Ollama server to accept requests from this origin.
+You can do this by setting the OLLAMA_ORIGINS environment variable when starting Ollama.
+Example: OLLAMA_ORIGINS=* ollama serve`;
+                }
+                return `ERROR: Could not connect to Ollama. Make sure it's running locally. Details: ${error.message}`;
+            }
+        }
+
+        async function getHintForProblem(problem) {
+            const prompt = `Give a small hint for solving this DSA problem in just 2 points the points should be clean and clear so tht user can get idea towards solution.Every point should not exceed more than 3-4 words,it should be shortcut, Don't give the solution. Guide the user. Problem: ${problem}`;
+            return await getOllamaResponse(prompt);
+        }
+
+        async function getFeedbackForCode(code, problem) {
+            if (!code || code.trim().length < 10) return null;
+            const prompt = `Based on this incomplete code for "${problem}", give a friendly suggestion not more than 10 words is very important,it also very important that dont give or explain the sloution,you just have to help the user improve in just 2 points the points should be clean and clear so that user can get idea towards solution,Every point should not exceed more than 3-5 words,it should be shortcut.just give like hints Code, if the code was not correct with respectiv to th problem try to give 3 word hint that helps to get idea towards approach of solution:\n${code}`;
+            return await getOllamaResponse(prompt);
+        }
+
+        async function getExecutionResult(language, code, testCase) {
+            const prompt = `
+            You are a code interpreter. Execute the following code snippet and provide the result in a structured format.return same output genarated with respective code 
+if the code was correct, if there is any optimal opprach for the question give the description about 10-15 words on solution 
+Language: ${language}
+Code to execute:
+\`\`\`${language}
+${code}
+\`\`\`
+Test Case Input: ${JSON.stringify(testCase.input)}
+Expected Output: ${JSON.stringify(testCase.expected)}
+
+Instructions:
+1. Simulate the execution of the code with the given input.
+2. Capture any text printed to the standard output (e.g., from print(), System.out.println(), std::cout).
+3. Determine the final return value of the main function.
+4. If there is a compilation or runtime error, capture it.
+
+Respond ONLY with the following format. Do not add any extra explanations.
+<output>
+[Any text printed to standard output here. If none, leave blank.]
+</output>
+<result>
+[The actual return value. If there was an error, put the error message here.]
+</result>`;
+            const rawResponse = await getOllamaResponse(prompt);
+            
+            if (rawResponse.startsWith('ERROR:')) {
+                return { consoleOutput: '', actualResult: rawResponse };
+            }
+
+            const outputMatch = rawResponse.match(/<output>([\s\S]*?)<\/output>/);
+            const resultMatch = rawResponse.match(/<result>([\s\S]*?)<\/result>/);
+
+            return {
+                consoleOutput: outputMatch ? outputMatch[1].trim() : "No console output.",
+                actualResult: resultMatch ? resultMatch[1].trim() : "Could not determine result.",
+            };
+        }
+    </script>
+
+    <!-- Questions Database -->
+    <script src="questions.js">
+    </script>
+
+    
+    <script>
+        // script.js
+        const difficultyModal = document.getElementById('difficulty-modal');
+        const mainContent = document.getElementById('main-content');
+        const timerEl = document.getElementById('timer');
+        const questionTitleEl = document.getElementById('question-title');
+        const questionDescriptionEl = document.getElementById('question-description');
+        const exampleContainer = document.getElementById('example-container');
+        const getClueBtn = document.getElementById('get-clue-btn');
+        const runCodeBtn = document.getElementById('run-code-btn');
+        const feedbackContainer = document.getElementById('feedback-container');
+        const consoleOutput = document.getElementById('console-output');
+        const resultsOutput = document.getElementById('results-output');
+        const langButtons = document.querySelectorAll('.lang-btn');
+
+        let editor;
+        let currentQuestion;
+        let timerInterval;
+        let feedbackInterval;
+        let currentLanguage = 'python';
+
+        editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
+            lineNumbers: true, mode: currentLanguage, theme: 'material-darker', indentUnit: 4,
+        });
+
+        function selectDifficulty(level) {
+            difficultyModal.classList.add('d-none');
+            mainContent.classList.remove('d-none');
+            loadQuestion(level);
+            startTimer(600);
+            startPeriodicFeedback();
+        }
+
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            const langConfig = { python: 'python', java: 'text/x-java', cpp: 'text/x-c++src' };
+            editor.setOption("mode", langConfig[lang]);
+            
+            langButtons.forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.id === `lang-${lang}`) {
+                    btn.classList.add('active');
+                }
+            });
+
+            if (currentQuestion) {
+                editor.setValue(currentQuestion.templates[currentLanguage]);
+            }
+        }
+
+        function loadQuestion(level) {
+            const levelQuestions = questions[level];
+            currentQuestion = levelQuestions[Math.floor(Math.random() * levelQuestions.length)];
+            questionTitleEl.textContent = currentQuestion.title;
+            questionDescriptionEl.textContent = currentQuestion.description;
+
+            const example = currentQuestion.testCases[0];
+            exampleContainer.innerHTML = `<div class="test-case"><strong>Input:</strong> ${JSON.stringify(example.input)}<br><strong>Expected:</strong> ${JSON.stringify(example.expected)}</div>`;
+            
+            setLanguage(currentLanguage);
+        }
+
+        function startTimer(duration) {
+            let timer = duration;
+            timerInterval = setInterval(() => {
+                const minutes = String(Math.floor(timer / 60)).padStart(2, '0');
+                const seconds = String(timer % 60).padStart(2, '0');
+                timerEl.textContent = `${minutes}:${seconds}`;
+                if (--timer < 0) {
+                    clearInterval(timerInterval);
+                    timerEl.textContent = "Time's Up!";
+                    getClueBtn.disabled = true;
+                    runCodeBtn.disabled = true;
+                    clearInterval(feedbackInterval);
+                }
+            }, 1000);
+        }
+        
+        function startPeriodicFeedback() {
+            feedbackInterval = setInterval(async () => {
+                const code = editor.getValue();
+                const feedback = await getFeedbackForCode(code, currentQuestion.title);
+                if (feedback) feedbackContainer.textContent = feedback;
+            }, 120000);
+        }
+
+        async function runCode() {
+            const userCode = editor.getValue();
+            const { testCases } = currentQuestion;
+            resultsOutput.innerHTML = 'Running tests...';
+            consoleOutput.innerHTML = '';
+            runCodeBtn.disabled = true;
+
+            let allPassed = true;
+            for (let i = 0; i < testCases.length; i++) {
+                const testCase = testCases[i];
+                resultsOutput.innerHTML = `Running Test Case ${i + 1}/${testCases.length}...`;
+                
+                const result = await getExecutionResult(currentLanguage, userCode, testCase);
+                
+                if (result.actualResult.startsWith('ERROR:')) {
+                    resultsOutput.innerHTML = `<div class="alert alert-danger">${result.actualResult}</div>`;
+                    runCodeBtn.disabled = false;
+                    return;
+                }
+
+                let parsedActual;
+                try {
+                    parsedActual = JSON.parse(result.actualResult);
+                } catch (e) {
+                    parsedActual = result.actualResult;
+                }
+                
+                const passed = JSON.stringify(parsedActual) === JSON.stringify(testCase.expected);
+                if (!passed) allPassed = false;
+
+                if (result.consoleOutput) {
+                    consoleOutput.innerHTML += `[Test Case ${i+1}]:\n${result.consoleOutput}\n\n`;
+                }
+
+                const resultDiv = document.createElement('div');
+                const isError = result.actualResult.toLowerCase().includes('error');
+                resultDiv.className = `p-3 mb-2 rounded border-start border-5 ${passed ? 'border-success bg-success-subtle' : 'border-danger bg-danger-subtle'}`;
+                resultDiv.innerHTML = `
+                    <div class="fw-bold">Test Case ${i + 1}: ${passed ? 'Passed' : 'Failed'}</div>
+                    <div class="small"><strong>Input:</strong> ${JSON.stringify(testCase.input)}</div>
+                    <div class="small"><strong>Expected:</strong> ${JSON.stringify(testCase.expected)}</div>
+                    <div class="small"><strong>Your Output:</strong> <span class="${isError ? 'text-danger' : ''}">${result.actualResult}</span></div>
+                `;
+                if (i === 0) resultsOutput.innerHTML = '';
+                resultsOutput.appendChild(resultDiv);
+            }
+            
+             if(allPassed) {
+                const successDiv = document.createElement('div');
+                successDiv.className = 'alert alert-success fw-bold text-center';
+                successDiv.textContent = 'Congratulations! All test cases passed!';
+                resultsOutput.prepend(successDiv);
+             }
+             runCodeBtn.disabled = false;
+        }
+
+        // Event Listeners
+        getClueBtn.addEventListener('click', async () => {
+            feedbackContainer.textContent = "Getting a hint...";
+            getClueBtn.disabled = true;
+            const hint = await getHintForProblem(currentQuestion.description);
+            feedbackContainer.textContent = hint;
+            getClueBtn.disabled = false;
+        });
+        
+        runCodeBtn.addEventListener('click', runCode);
+
+        langButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                setLanguage(btn.id.replace('lang-', ''));
+            });
+        });
+
+        // Set initial state
+        setLanguage('python');
+
+    </script>
+</body>
+</html>
